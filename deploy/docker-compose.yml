@@ -11,6 +11,8 @@ services:
         target: /var/lib/scylla
         volume:
           nocopy: true
+    networks:
+      - websocket-chat-service
 
   redis:
     user: root
@@ -24,7 +26,17 @@ services:
     volumes:
       - /redis-data:/bitnami/redis/data
     networks:
-      - news-network
+      - websocket-chat-service
+
+  redisinsight:
+    user: root
+    image: redis/redisinsight:2.56
+    ports:
+      - 5540:5540
+    volumes:
+      - /redisinsight-data:/data
+    networks:
+      - websocket-chat-service
 
 volumes:
   scylladb:

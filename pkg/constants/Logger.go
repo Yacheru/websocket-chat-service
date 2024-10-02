@@ -1,12 +1,12 @@
 package constants
 
 const (
-	LoggerCategory  = "logger"
-	ConfigLogger    = "config"
-	ScyllaLogger    = "scylla"
-	ServerLogger    = "server"
-	MainLogger      = "main"
-	HandlerLogger   = "handler"
-	WebsocketLogger = "websocket"
-	RedisLogger     = "redis"
+	LoggerCategory    = "logger"
+	ConfigCategory    = "config"
+	ScyllaCategory    = "scylla"
+	ServerCategory    = "server"
+	MainCategory      = "main"
+	HandlerLogger     = "handler"
+	WebsocketCategory = "websocket"
+	RedisCategory     = "redis"
 )

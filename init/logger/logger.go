@@ -37,7 +37,7 @@ func InfoF(format string, category string, args ...interface{}) {
 	log.WithFields(fields).Infof(format, args...)
 }
 
-func Debug(message string, category string) {
+func Debug(message interface{}, category string) {
 	fields := logrus.Fields{constants.LoggerCategory: category}
 
 	log.WithFields(fields).Debug(message)

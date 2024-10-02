@@ -19,12 +19,12 @@ func NewScyllaSession(ctx context.Context, cfg *config.Config) (*gocqlx.Session,
 
 	ses, err := gocqlx.WrapSession(cluster.CreateSession())
 	if err != nil {
-		logger.Error(err.Error(), constants.ScyllaLogger)
+		logger.Error(err.Error(), constants.ScyllaCategory)
 		return nil, err
 	}
 
 	if err := migrate.FromFS(ctx, ses, os.DirFS("./migrations")); err != nil {
-		logger.Error(err.Error(), constants.ScyllaLogger)
+		logger.Error(err.Error(), constants.ScyllaCategory)
 		return nil, err
 	}
 

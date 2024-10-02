@@ -11,13 +11,12 @@ import (
 func NewRedisClient(ctx context.Context, cfg *config.Config) (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
-		Username: cfg.RedisUsername,
 		Password: cfg.RedisPassword,
 		DB:       0,
 	})
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		logger.Error(err.Error(), "Ping: "+constants.RedisLogger)
+		logger.Error(err.Error(), "Ping: "+constants.RedisCategory)
 		return nil, err
 	}
 

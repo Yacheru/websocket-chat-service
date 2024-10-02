@@ -17,8 +17,7 @@ func main() {
 	cfg := &config.ServerConfig
 
 	if err := config.InitConfig(); err != nil {
-		logger.Error(err.Error(), constants.MainLogger)
-
+		logger.Error(err.Error(), constants.MainCategory)
 		cancel()
 	}
 
@@ -30,17 +29,17 @@ func main() {
 	}
 
 	if app != nil {
-		app.Run(ctx)
+		app.Run()
 	}
-	logger.Info("service is running", constants.MainLogger)
+	logger.Info("service is running", constants.MainCategory)
 
 	<-ctx.Done()
 
 	if app != nil {
 		if err := app.Shutdown(ctx); err != nil {
-			logger.Error(err.Error(), constants.MainLogger)
+			logger.Error(err.Error(), constants.MainCategory)
 		}
 	}
 
-	logger.Info("service is shutdown", constants.MainLogger)
+	logger.Info("service is shutdown", constants.MainCategory)
 }

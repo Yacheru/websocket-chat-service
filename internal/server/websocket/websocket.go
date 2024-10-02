@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/coder/websocket"
 	"io"
 	"sync"
-
-	"github.com/coder/websocket"
+	"websocket-chat-service/init/config"
+	"websocket-chat-service/internal/service"
 
 	"websocket-chat-service/init/logger"
 	"websocket-chat-service/internal/entities"
 	"websocket-chat-service/pkg/constants"
-	"websocket-chat-service/pkg/utils"
 )
 
 type Client interface {
@@ -21,55 +21,66 @@ type Client interface {
 }
 
 type WebSocket struct {
-	URL   string
-	count int
-	wg    *sync.WaitGroup
-	mu    *sync.Mutex
-	cChan chan *websocket.Conn
-	mChan chan *entities.Message
+	url          string
+	maxConnLimit int
+	auth         string
+
+	countConn int
+
+	manager MessageManager
+
+	wg *sync.WaitGroup
+	mu sync.Mutex
+
+	conn chan *websocket.Conn
 }
 
-func NewWebSocket(url string) *WebSocket {
+func NewWebSocket(cfg *config.Config, service *service.Service) *WebSocket {
+	manager := NewManager(service.ScyllaService)
+
 	return &WebSocket{
-		URL:   url,
-		wg:    new(sync.WaitGroup),
-		mu:    new(sync.Mutex),
-		cChan: make(chan *websocket.Conn, 1),
-		mChan: make(chan *entities.Message),
+		url:          cfg.WebsocketURL,
+		maxConnLimit: cfg.WebsocketLimit,
+		auth:         cfg.BearerAuth,
+		manager:      manager,
+		wg:           new(sync.WaitGroup),
+		mu:           sync.Mutex{},
+		conn:         make(chan *websocket.Conn, 1),
 	}
 }
 
 func (ws *WebSocket) Dial(ctx context.Context) error {
-	if ws.count == 1 {
-		return errors.New("already connected")
+	if ws.countConn == ws.maxConnLimit {
+		return constants.MaxLimitConnError
 	}
 
 	ws.wg.Add(1)
 	go func() {
 		defer ws.wg.Done()
 
-		c, _, err := websocket.Dial(ctx, ws.URL, nil)
+		c, _, err := websocket.Dial(ctx, ws.url, nil)
 		if err != nil {
-			logger.Error(err.Error(), "Dial: "+constants.WebsocketLogger)
+			logger.Error(err.Error(), "Dial: "+constants.WebsocketCategory)
 		}
 
-		if err := c.Write(ctx, websocket.MessageText, []byte("Bearer auth")); err != nil {
-			logger.Error(err.Error(), "Write auth: "+constants.WebsocketLogger)
+		if err := c.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf("Bearer %s", ws.auth))); err != nil {
+			logger.Error(err.Error(), "Write auth: "+constants.WebsocketCategory)
 			c.Close(websocket.StatusTryAgainLater, "try again later")
 		}
 		if err := c.Write(ctx, websocket.MessageText, []byte("Listen PlayerChatEvent")); err != nil {
-			logger.Error(err.Error(), "Write event: "+constants.WebsocketLogger)
+			logger.Error(err.Error(), "Write event: "+constants.WebsocketCategory)
 			c.Close(websocket.StatusTryAgainLater, "try again later")
 		}
 
 		ws.mu.Lock()
-		ws.count++
+		ws.countConn++
 		ws.mu.Unlock()
 
-		ws.cChan <- c
+		ws.conn <- c
 	}()
-
 	ws.wg.Wait()
+
+	logger.Info("websocket connected", constants.WebsocketCategory)
 
 	ws.listen(ctx)
 
@@ -77,7 +88,6 @@ func (ws *WebSocket) Dial(ctx context.Context) error {
 }
 
 func (ws *WebSocket) listen(ctx context.Context) {
-
 	go func(c *websocket.Conn) {
 		defer func() {
 			if err := c.Close(websocket.StatusNormalClosure, "connection closed"); err != nil {
@@ -94,14 +104,14 @@ func (ws *WebSocket) listen(ctx context.Context) {
 				_, b, err := c.Read(ctx)
 				if err != nil {
 					if websocket.CloseStatus(err) != -1 {
-						logger.Error("websocket connection closed", "Read: "+constants.WebsocketLogger)
+						logger.Error("websocket connection closed", "Read: "+constants.WebsocketCategory)
 						return
 					}
 					if errors.Is(err, io.EOF) {
-						logger.Error("Connection closed by server", "Read: "+constants.WebsocketLogger)
+						logger.Error("Connection closed by server", "Read: "+constants.WebsocketCategory)
 						break
 					}
-					logger.Error(err.Error(), "WS Read: "+constants.WebsocketLogger)
+					logger.Error(err.Error(), "WS Read: "+constants.WebsocketCategory)
 					continue
 				}
 
@@ -109,16 +119,18 @@ func (ws *WebSocket) listen(ctx context.Context) {
 					continue
 				}
 
-				bytes := utils.CutMessagePrefix(b)
+				bytes := CutMessagePrefix(b)
 
 				err = json.Unmarshal(bytes, message)
 				if err != nil {
-					logger.Error(err.Error(), constants.WebsocketLogger)
+					logger.Error(err.Error(), constants.WebsocketCategory)
 					continue
 				}
 
-				fmt.Println(message)
+				if err := ws.manager.ManageMessage(ctx, message); err != nil {
+					continue
+				}
 			}
 		}
-	}(<-ws.cChan)
+	}(<-ws.conn)
 }

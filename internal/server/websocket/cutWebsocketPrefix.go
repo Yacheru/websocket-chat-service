@@ -1,13 +1,11 @@
-package utils
+package websocket
 
 func CutMessagePrefix(bytes []byte) []byte {
-	var pos int
 	for i, b := range bytes {
 		if b == '{' {
-			pos = i
-			break
+			return bytes[i:]
 		}
 	}
 
-	return bytes[pos:]
+	return nil
 }

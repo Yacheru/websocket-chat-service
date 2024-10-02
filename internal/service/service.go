@@ -1,8 +1,14 @@
 package service
 
-import "websocket-chat-service/internal/repository"
+import (
+	"context"
+	"websocket-chat-service/internal/entities"
+	"websocket-chat-service/internal/repository"
+)
 
 type ScyllaService interface {
+	StoreMessage(ctx context.Context, msg *entities.Message) error
+	GetAllMessages(ctx context.Context) ([]*entities.Message, error)
 }
 
 type Service struct {
@@ -11,6 +17,6 @@ type Service struct {
 
 func NewService(repo *repository.Repository) *Service {
 	return &Service{
-		ScyllaService: NewScyllaMessagesService(repo.ScyllaRepository),
+		ScyllaService: NewMessagesService(repo.ScyllaRepository, repo.RedisRepository),
 	}
 }

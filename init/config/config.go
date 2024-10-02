@@ -15,13 +15,15 @@ type Config struct {
 	ApiEntry string `mapstructure:"API_ENTRY"`
 
 	RedisAddr     string `mapstructure:"REDIS_ADDR"`
-	RedisUsername string `mapstructure:"REDIS_USERNAME"`
 	RedisPassword string `mapstructure:"REDIS_PASSWORD"`
 
 	ScyllaHosts    []string `mapstructure:"SCYLLA_HOSTS"`
 	ScyllaKeyspace string   `mapstructure:"SCYLLA_KEYSPACE"`
 
-	WebsocketURL string `mapstructure:"WEBSOCKET_URL"`
+	WebsocketURL   string `mapstructure:"WEBSOCKET_URL"`
+	WebsocketLimit int    `mapstructure:"WEBSOCKET_LIMIT"`
+
+	BearerAuth string `mapstructure:"BEARER_AUTH"`
 }
 
 func InitConfig() error {
@@ -29,16 +31,17 @@ func InitConfig() error {
 	viper.SetConfigType("env")
 	viper.AddConfigPath("./configs")
 	if err := viper.ReadInConfig(); err != nil {
-		logger.Error(err.Error(), constants.ConfigLogger)
+		logger.Error(err.Error(), constants.ConfigCategory)
 		return err
 	}
 
 	if err := viper.Unmarshal(&ServerConfig); err != nil {
-		logger.Error(err.Error(), constants.ConfigLogger)
+		logger.Error(err.Error(), constants.ConfigCategory)
 		return err
 	}
 
 	if err := CheckVars(); err != nil {
+		logger.Error(err.Error(), constants.ConfigCategory)
 		return err
 	}
 
@@ -47,11 +50,19 @@ func InitConfig() error {
 
 func CheckVars() error {
 	if ServerConfig.ApiPort == 0 || ServerConfig.ApiEntry == "" {
-		return errors.New("API port and API entry is required environment variables")
+		return errors.New("API_PORT and API_ENTRY is required environment variables")
 	}
 
-	if ServerConfig.ScyllaKeyspace == "" {
-		return errors.New("ScyllaKeyspace is required environment variable")
+	if ServerConfig.RedisAddr == "" || ServerConfig.RedisPassword == "" {
+		return errors.New("REDIS_ADDR and REDIS_PASSWORD are required environment variables")
+	}
+
+	if ServerConfig.ScyllaKeyspace == "" || len(ServerConfig.ScyllaHosts) == 0 {
+		return errors.New("SCYLLA_KEYSPACE and SCYLLA_HOSTS is required environment variable")
+	}
+
+	if ServerConfig.WebsocketURL == "" || ServerConfig.BearerAuth == "" {
+		return errors.New("WEBSOCKET_URL and BEARER_AUTH are required environment variables")
 	}
 
 	return nil

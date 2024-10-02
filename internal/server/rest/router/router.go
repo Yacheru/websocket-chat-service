@@ -1,8 +1,8 @@
 package router
 
 import (
-	"context"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/scylladb/gocqlx/v2"
 	"websocket-chat-service/init/config"
 	"websocket-chat-service/internal/repository"
@@ -16,11 +16,11 @@ type Router struct {
 	handler *handlers.Handler
 }
 
-func NewRouterAndComponents(ctx context.Context, cfg *config.Config, router *gin.RouterGroup, scylla *gocqlx.Session) *Router {
-	repo := repository.NewRepository(scylla)
+func NewRouterAndComponents(cfg *config.Config, router *gin.RouterGroup, scylla *gocqlx.Session, r *redis.Client) *Router {
+	repo := repository.NewRepository(scylla, r)
 	services := service.NewService(repo)
-	ws := websocket.NewWebSocket(cfg.WebsocketURL)
-	handler := handlers.NewHandler(services.ScyllaService, ws)
+	ws := websocket.NewWebSocket(cfg, services)
+	handler := handlers.NewHandler(services, ws)
 
 	return &Router{
 		router:  router,
@@ -29,7 +29,12 @@ func NewRouterAndComponents(ctx context.Context, cfg *config.Config, router *gin
 }
 
 func (r *Router) Router() {
+	ws := r.router.Group("/ws")
 	{
-		r.router.GET("/ws", r.handler.Ws)
+		ws.GET("/run", r.handler.RunWS)
+	}
+	messages := r.router.Group("/messages")
+	{
+		messages.GET("/all", r.handler.GetAllMessages)
 	}
 }

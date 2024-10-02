@@ -11,6 +11,7 @@ import (
 
 type ScyllaRepository interface {
 	StoreMessage(ctx context.Context, msg *entities.Message) error
+	GetAllMessages(ctx context.Context) ([]*entities.Message, error)
 }
 
 type RedisRepository interface {
