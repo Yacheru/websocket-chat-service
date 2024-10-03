@@ -17,6 +17,40 @@ func NewMessageRepository(scylla *gocqlx.Session) *MessageRepository {
 	return &MessageRepository{scylla}
 }
 
+func (m *MessageRepository) GetPlayerMessages(ctx context.Context, nickname string) ([]*entities.Message, error) {
+	var entitiesMessages []*entities.Message
+
+	stmt := `SELECT message, player, player_uuid, sent_at FROM messages WHERE player = ? ORDER BY sent_at ALLOW FILTERING`
+
+	iter := m.scylla.ContextQuery(ctx, stmt, []string{"nickname"}).Bind(nickname).Iter()
+
+	var (
+		message        string
+		playerUsername string
+		playerUUID     string
+		sentAt         = new(time.Time)
+	)
+
+	for iter.Scan(&message, &playerUsername, &playerUUID, sentAt) {
+		msg := &entities.Message{
+			Message: message,
+			Player: entities.Player{
+				UUID:     playerUUID,
+				Username: playerUsername,
+			},
+			SentAt: sentAt,
+		}
+		entitiesMessages = append(entitiesMessages, msg)
+	}
+
+	if err := iter.Close(); err != nil {
+		logger.Error(err.Error(), constants.ScyllaCategory)
+		return nil, err
+	}
+
+	return entitiesMessages, nil
+}
+
 func (m *MessageRepository) GetAllMessages(ctx context.Context) ([]*entities.Message, error) {
 	var entitiesMessages []*entities.Message
 
@@ -24,10 +58,12 @@ func (m *MessageRepository) GetAllMessages(ctx context.Context) ([]*entities.Mes
 
 	iter := m.scylla.ContextQuery(ctx, stmt, nil).Iter()
 
-	var message string
-	var playerUsername string
-	var playerUUID string
-	var sentAt = new(time.Time)
+	var (
+		message        string
+		playerUsername string
+		playerUUID     string
+		sentAt         = new(time.Time)
+	)
 
 	for iter.Scan(&message, &playerUsername, &playerUUID, sentAt) {
 		msg := &entities.Message{

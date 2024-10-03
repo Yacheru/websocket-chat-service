@@ -12,6 +12,7 @@ import (
 type ScyllaRepository interface {
 	StoreMessage(ctx context.Context, msg *entities.Message) error
 	GetAllMessages(ctx context.Context) ([]*entities.Message, error)
+	GetPlayerMessages(ctx context.Context, nickname string) ([]*entities.Message, error)
 }
 
 type RedisRepository interface {

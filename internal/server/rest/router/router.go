@@ -36,5 +36,6 @@ func (r *Router) Router() {
 	messages := r.router.Group("/messages")
 	{
 		messages.GET("/all", r.handler.GetAllMessages)
+		messages.GET("/:nickname/", r.handler.GetPlayerMessages)
 	}
 }

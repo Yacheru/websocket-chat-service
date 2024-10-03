@@ -31,8 +31,6 @@ type WebSocket struct {
 
 	wg *sync.WaitGroup
 	mu sync.Mutex
-
-	conn chan *websocket.Conn
 }
 
 func NewWebSocket(cfg *config.Config, service *service.Service) *WebSocket {
@@ -45,7 +43,6 @@ func NewWebSocket(cfg *config.Config, service *service.Service) *WebSocket {
 		manager:      manager,
 		wg:           new(sync.WaitGroup),
 		mu:           sync.Mutex{},
-		conn:         make(chan *websocket.Conn, 1),
 	}
 }
 
@@ -54,40 +51,34 @@ func (ws *WebSocket) Dial(ctx context.Context) error {
 		return constants.MaxLimitConnError
 	}
 
-	ws.wg.Add(1)
-	go func() {
-		defer ws.wg.Done()
+	c, _, err := websocket.Dial(ctx, ws.url, nil)
+	if err != nil {
+		logger.Error(err.Error(), "Dial: "+constants.WebsocketCategory)
+		return err
+	}
 
-		c, _, err := websocket.Dial(ctx, ws.url, nil)
-		if err != nil {
-			logger.Error(err.Error(), "Dial: "+constants.WebsocketCategory)
-		}
+	if err := c.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf("Bearer %s", ws.auth))); err != nil {
+		logger.Error(err.Error(), "Write auth: "+constants.WebsocketCategory)
+		c.Close(websocket.StatusTryAgainLater, "try again later")
+		return err
+	}
+	if err := c.Write(ctx, websocket.MessageText, []byte("Listen PlayerChatEvent")); err != nil {
+		logger.Error(err.Error(), "Write event: "+constants.WebsocketCategory)
+		c.Close(websocket.StatusTryAgainLater, "try again later")
+		return err
+	}
 
-		if err := c.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf("Bearer %s", ws.auth))); err != nil {
-			logger.Error(err.Error(), "Write auth: "+constants.WebsocketCategory)
-			c.Close(websocket.StatusTryAgainLater, "try again later")
-		}
-		if err := c.Write(ctx, websocket.MessageText, []byte("Listen PlayerChatEvent")); err != nil {
-			logger.Error(err.Error(), "Write event: "+constants.WebsocketCategory)
-			c.Close(websocket.StatusTryAgainLater, "try again later")
-		}
+	ws.mu.Lock()
+	ws.countConn++
+	ws.mu.Unlock()
 
-		ws.mu.Lock()
-		ws.countConn++
-		ws.mu.Unlock()
-
-		ws.conn <- c
-	}()
-	ws.wg.Wait()
+	ws.listen(ctx, c)
 
 	logger.Info("websocket connected", constants.WebsocketCategory)
-
-	ws.listen(ctx)
-
 	return nil
 }
 
-func (ws *WebSocket) listen(ctx context.Context) {
+func (ws *WebSocket) listen(ctx context.Context, c *websocket.Conn) {
 	go func(c *websocket.Conn) {
 		defer func() {
 			if err := c.Close(websocket.StatusNormalClosure, "connection closed"); err != nil {
@@ -132,5 +123,5 @@ func (ws *WebSocket) listen(ctx context.Context) {
 				}
 			}
 		}
-	}(<-ws.conn)
+	}(c)
 }
